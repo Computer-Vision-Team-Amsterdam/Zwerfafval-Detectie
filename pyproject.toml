@@ -15,7 +15,10 @@ maintainers = [
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "folium>=0.12",
     "geopandas",
+    "matplotlib",
+    "mapclassify",
     "numpy",
     "shapely",
     "xyzservices",
