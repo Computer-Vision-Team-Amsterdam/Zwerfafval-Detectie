@@ -21,6 +21,7 @@ dependencies = [
     "mapclassify",
     "numpy",
     "shapely",
+    "scikit-learn",
     "xyzservices",
 ]
 
