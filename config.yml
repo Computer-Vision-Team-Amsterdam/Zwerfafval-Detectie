@@ -1,0 +1,52 @@
+customer: ""
+
+aml_experiment_details:
+  experiment_name: "zwerfafval_detectie"
+  compute_name: gpu-inference-cluster
+  env_name: yolo-environment
+  env_version: 22
+  src_dir: "."
+
+training_pipeline:
+  model_parameters:
+    img_size: 1280
+    batch: 8
+    epochs: 250
+    n_classes: 1  # 3
+    name_classes: ["zwerfafval_grof"]  # ["zwerfafval_fijn", "zwerfafval_grof", "grofvuil"]
+    cache: True  # cache dataset in RAM
+    # The following settings are ignored in sweep mode and will instead be taken from the sweep_config_file.
+    patience: 0
+    cos_lr: True
+    seed: 0
+    box: 7.5
+    cls: 0.5
+    dfl: 1.5
+  inputs:
+    datastore_path: "experiments"
+    training_data_rel_path: "zwerfafval/dataset_v1-1_extra"
+    model_weights_rel_path: "zwerfafval/model"
+    model_name: "yolo26s.pt"
+    model_config_file: "" # can be an empty string or omitted entirely
+    # sweep_config_file: ""
+  outputs:
+    project_datastore_path: "experiments"
+    project_rel_path: "zwerfafval/train"
+    experiment_name: "yolo26s_1280_v1-1_extra_250"  # subfolder name to store results in, can be an empty string or omitted entirely, will be ignored in sweep mode
+  # sweep_mode: False  # Set to true to run a hyperparameter sweep based on inputs/sweep_config_file
+  # sweep_trials: 1 # will be ignored in train mode
+
+wandb:
+  api_key: ""
+  mode: "offline"
+  entity: ""  # W&B entity to log the run to (default: null)
+  project_name: ""  # W&B project name
+
+logging:
+  loglevel_own: INFO  # override loglevel for packages defined in `own_packages`
+  own_packages: ["__main__", "zwerfafval_detectie"]
+  basic_config:
+    # log config as arguments to `logging.basicConfig`
+    level: WARNING
+    format: "%(asctime)s|||%(levelname)-8s|%(name)s|%(message)s"
+    datefmt: "%Y-%m-%d %H:%M:%S"
