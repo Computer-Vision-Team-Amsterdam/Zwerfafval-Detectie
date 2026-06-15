@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=70.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zwerfafval_detectie"
+version = "0.1"
+description = "Detectie van zwerfafval op straatbeelden."
+authors = [
+    {name = "Daan Bloembergen", email = "d.bloembergen@amsterdam.nl"},
+]
+maintainers = [
+    { name = "Computer Vision Team, Gemeente Amsterdam", email = "cvt@amsterdam.nl" },
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "folium>=0.12",
+    "geopandas",
+    "matplotlib",
+    "mapclassify",
+    "numpy",
+    "shapely",
+    "scikit-learn",
+    "xyzservices",
+]
+
+[project.optional-dependencies]
+dev = [
+    "azure-identity-broker",
+    "ipykernel",
+    "ipywidgets",
+    "nbstripout>=0.7.1",
+    "pre-commit>=3.2.0",
+    "pytest>=7.0.1",
+    "pytest-cov>=4.0.0",
+    "safety>=3.2.4",
+]
+
+[tool.setuptools.packages.find]
+include=["zwerfafval_detectie"]
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
