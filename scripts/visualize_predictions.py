@@ -1,8 +1,9 @@
 import argparse
 import os
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
+import numpy.typing as npt
 from output_image import OutputImage
 
 window_name = "Visualize YOLO predictions"
@@ -25,9 +26,9 @@ def visualize_predictions(
 ):
     print(
         "\n======\n"
-        "Visualize YOLO predictions.\n "
-        "Press [RIGHT] or [LEFT] to move between images. "
-        "Press [UP] to toggle ground truth labels (if available).\n"
+        "Visualize YOLO predictions.\n"
+        "Press [RIGHT] or [LEFT] to move between images.\n"
+        "Press [UP] and [DOWN] to toggle between predictions and truth labels (if available).\n"
         "Press [ESC] to exit."
         "\n======\n"
     )
@@ -46,71 +47,67 @@ def visualize_predictions(
         label_files = set()
 
     n_images = len(image_files)
+    idx = 0
 
-    for i, image_file in enumerate(image_files):
+    while idx < n_images:
+        image_file = image_files[idx]
         file_name = os.path.splitext(image_file)[0]
         img_file_path = os.path.join(images_folder, image_file)
+
+        raw_image = cv2.imread(img_file_path)
+
         if f"{file_name}.txt" in prediction_files:
             pred_file_path = os.path.join(predictions_folder, f"{file_name}.txt")
             predictions = load_yolo_annotations(pred_file_path)
         else:
             print(f"No predictions found for image {image_file}")
             predictions = []
+        pred_image = generate_image(raw_image, predictions)
 
-        # labels = []
-        # if labels_folder is not None:
-        #     if f"{file_name}.txt" in label_files:
-        #         label_file_path = os.path.join(predictions_folder, f"{file_name}.txt")
-        #         labels = load_yolo_annotations(label_file_path)
-        #     else:
-        #         print(f"No labels found for image {image_file}")
-
-        raw_image = cv2.imread(img_file_path)
-        img_width, img_height = raw_image.shape[1], raw_image.shape[0]
-
-        image = OutputImage(raw_image.copy())
-
-        if len(predictions) > 0:
-            cats = sorted(set([pred["cls"] for pred in predictions]))
-            image.draw_legend(
-                origin=(img_width - 100, 100),
-                categories=cats,
-                category_names=class_to_name,
-                colour_map=class_to_color,
-            )
-
-        for pred in predictions:
-            bbox = convert_yolo_bbox_for_img(
-                bbox=pred["bbox"], img_w=img_width, img_h=img_height
-            )
-            obj_class = pred["cls"]
-            # text = class_to_name[obj_class]
-            text = f"{pred['conf']:.2f}"
-
-            image.draw_bounding_boxes(
-                boxes=[bbox],
-                categories=[obj_class],
-                colour_map=class_to_color,
-                texts=[text],
-                line_thickness=1,
-                font_scale=0.3,
-                font_thickness=1,
-            )
+        labels = []
+        if labels_folder is not None:
+            if f"{file_name}.txt" in label_files:
+                label_file_path = os.path.join(labels_folder, f"{file_name}.txt")
+                labels = load_yolo_annotations(label_file_path, is_pred=False)
+            else:
+                print(f"No labels found for image {image_file}")
+            label_image = generate_image(raw_image, labels)
 
         cv2.setWindowTitle(
             window_name,
-            f"Showing predictions for image {image_file} ({i}/{n_images})",
+            f"Showing predictions for image {image_file} ({idx}/{n_images})",
         )
-        cv2.imshow(window_name, image.get_image())
+        cv2.imshow(window_name, pred_image.get_image())
 
         # The function waitKey waits for a key event infinitely (when delay<=0)
         k = None
-        pos_values = [83, 27]
-        while k not in pos_values:
+        while True:
             k = cv2.waitKey(0)
-            if k in [83]:
+            if k in [81]:
+                # [left]: previous image
+                idx -= 1
+                break
+            elif k in [82]:
+                # [up]: show label image
+                if labels_folder is not None:
+                    cv2.setWindowTitle(
+                        window_name,
+                        f"Showing labels for image {image_file} ({idx}/{n_images})",
+                    )
+                    cv2.imshow(window_name, label_image.get_image())
+                else:
+                    pass
+            elif k in [83]:
                 # [right]: next image
-                continue
+                idx += 1
+                break
+            elif k in [84]:
+                # [down]: show prediction image
+                cv2.setWindowTitle(
+                    window_name,
+                    f"Showing predictions for image {image_file} ({idx}/{n_images})",
+                )
+                cv2.imshow(window_name, pred_image.get_image())
             elif k == 27:
                 # [esc] to exit the program
                 print("Exiting")
@@ -123,6 +120,40 @@ def visualize_predictions(
     print("Exiting")
     cv2.destroyWindow(window_name)
     return
+
+
+def generate_image(raw_image: npt.NDArray, detections: List[Dict[str, Any]]):
+    image = OutputImage(raw_image.copy())
+    img_width, img_height = image.shape[1], image.shape[0]
+
+    if len(detections) > 0:
+        cats = sorted(set([dets["cls"] for dets in detections]))
+        image.draw_legend(
+            origin=(img_width - 100, 100),
+            categories=cats,
+            category_names=class_to_name,
+            colour_map=class_to_color,
+        )
+
+    for pred in detections:
+        bbox = convert_yolo_bbox_for_img(
+            bbox=pred["bbox"], img_w=img_width, img_h=img_height
+        )
+        obj_class = pred["cls"]
+        # text = class_to_name[obj_class]
+        text = f"{pred['conf']:.2f}"
+
+        image.draw_bounding_boxes(
+            boxes=[bbox],
+            categories=[obj_class],
+            colour_map=class_to_color,
+            texts=[text],
+            line_thickness=1,
+            font_scale=0.3,
+            font_thickness=1,
+        )
+
+    return image
 
 
 def get_file_paths(
