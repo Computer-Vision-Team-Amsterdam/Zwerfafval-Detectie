@@ -25,12 +25,26 @@ STATE_LABELS = 1
 
 
 class PredictionVisualizer:
+    """
+    Visualization tool for YOLO predictions. The tool shows predictions (and
+    optionally ground truth labels) on images and allows to filter by confidence
+    score.
+
+    Parameters
+    ----------
+    images_folder: str
+        Path to folder containing the images.
+    predictions_folder: str
+        Path to folder containing the YOLO predictions.
+    labels_folder: Optional[str] = None
+        Optional: path to folder containing the ground truth labels.
+    """
 
     raw_image: npt.NDArray
     labels: List[Dict[str, Any]]
     predictions: List[Dict[str, Any]]
 
-    min_iou = 0.0
+    min_confidence = 0.0
     current_state = STATE_PREDICTIONS
 
     def __init__(
@@ -52,10 +66,10 @@ class PredictionVisualizer:
             "\n======\n"
         )
 
-        self.scan_folders()
-        self.visualize_predictions()
+        self._scan_folders()
+        self._visualize_predictions()
 
-    def scan_folders(self) -> None:
+    def _scan_folders(self) -> None:
         print("Scanning input folders...")
 
         self.image_files = get_file_paths(self.images_folder, [".jpg", ".jpeg", ".png"])
@@ -70,34 +84,56 @@ class PredictionVisualizer:
         else:
             self.label_files = set()
 
-    def change_iou(self, new_value: int) -> None:
-        self.min_iou = new_value / 100
-        self.refresh_images()
-        self.show_image()
+    def change_confidence(self, new_value: int) -> None:
+        """
+        Update confidence score threshold, re-draw the image, and refresh the
+        display.
+        """
+        self.min_confidence = new_value / 100
+        self._refresh_images()
+        self._show_image()
 
-    def refresh_images(self) -> None:
-        self.pred_image = generate_image(self.raw_image, self.predictions, self.min_iou)
+    def _refresh_images(self) -> None:
+        """
+        Re-draw images (e.g. when moving to the next image or when changing the
+        confidence threshold).
+        """
+        self.pred_image = generate_image(
+            self.raw_image, self.predictions, self.min_confidence
+        )
         self.label_image = generate_image(self.raw_image, self.labels)
 
-    def show_image(self) -> None:
+    def _show_image(self) -> None:
+        """Show the image."""
         if self.current_state == STATE_PREDICTIONS:
+            cv2.setWindowTitle(
+                WINDOW_NAME,
+                f"PREDICTIONS for image {self.image_file} (img {self.idx}/{self.n_images})",
+            )
             cv2.imshow(WINDOW_NAME, self.pred_image.get_image())
         elif self.current_state == STATE_LABELS:
+            cv2.setWindowTitle(
+                WINDOW_NAME,
+                f"LABELS for image {self.image_file} (img {self.idx}/{self.n_images})",
+            )
             cv2.imshow(WINDOW_NAME, self.label_image.get_image())
         else:
             print(f"Illegal state: {self.current_state}")
 
-    def visualize_predictions(self) -> None:
+    def _visualize_predictions(self) -> None:
+        """Main window and logic."""
         cv2.namedWindow(WINDOW_NAME)
-        cv2.createTrackbar("IoU", WINDOW_NAME, 0, 100, self.change_iou)
+        cv2.createTrackbar(
+            "Confidence score", WINDOW_NAME, 0, 100, self.change_confidence
+        )
 
-        n_images = len(self.image_files)
-        idx = 0
+        self.n_images = len(self.image_files)
+        self.idx = 0
 
-        while idx < n_images:
-            image_file = self.image_files[idx]
-            file_name = os.path.splitext(image_file)[0]
-            img_file_path = os.path.join(self.images_folder, image_file)
+        while self.idx < self.n_images:
+            self.image_file = self.image_files[self.idx]
+            file_name = os.path.splitext(self.image_file)[0]
+            img_file_path = os.path.join(self.images_folder, self.image_file)
 
             self.raw_image = cv2.imread(img_file_path)
 
@@ -107,7 +143,7 @@ class PredictionVisualizer:
                 )
                 self.predictions = load_yolo_annotations(pred_file_path)
             else:
-                print(f"No predictions found for image {image_file}")
+                print(f"No predictions found for image {self.image_file}")
                 self.predictions = []
 
             self.labels = []
@@ -118,50 +154,30 @@ class PredictionVisualizer:
                     )
                     self.labels = load_yolo_annotations(label_file_path, is_pred=False)
                 else:
-                    print(f"No labels found for image {image_file}")
+                    print(f"No labels found for image {self.image_file}")
 
-            self.refresh_images()
+            self._refresh_images()
+            self._show_image()
 
-            cv2.setWindowTitle(
-                WINDOW_NAME,
-                f"Showing predictions for image {image_file} ({idx}/{n_images})",
-            )
-            self.show_image()
-
-            # The function waitKey waits for a key event infinitely (when delay<=0)
             k = None
             while True:
-                k = cv2.waitKey(0)
-                if k in [44]:
-                    # [<]: previous image
-                    idx -= 1
+                k = cv2.waitKey(0)  # Waits for a key event infinitely (when delay<=0)
+                if k in [44]:  # [<]: previous image
+                    self.idx -= 1
                     break
-                elif k in [46]:
-                    # [right]: next image
-                    idx += 1
+                elif k in [46]:  # [right]: next image
+                    self.idx += 1
                     break
-                elif k in [108]:
-                    # [L]: show label image
+                elif k in [108]:  # [L]: show label image
                     if self.labels_folder is not None:
                         self.current_state = STATE_LABELS
-                        cv2.setWindowTitle(
-                            WINDOW_NAME,
-                            f"Showing labels for image {image_file} ({idx}/{n_images})",
-                        )
-                        self.show_image()
+                        self._show_image()
                     else:
                         pass
-
-                elif k in [112]:
-                    # [P]: show prediction image
+                elif k in [112]:  # [P]: show prediction image
                     self.current_state = STATE_PREDICTIONS
-                    cv2.setWindowTitle(
-                        WINDOW_NAME,
-                        f"Showing predictions for image {image_file} ({idx}/{n_images})",
-                    )
-                    self.show_image()
-                elif k == 27:
-                    # [esc] to exit the program
+                    self._show_image()
+                elif k == 27:  # [esc]: exit the program
                     print("Exiting")
                     cv2.destroyWindow(WINDOW_NAME)
                     return
@@ -175,13 +191,17 @@ class PredictionVisualizer:
 
 
 def generate_image(
-    raw_image: npt.NDArray, detections: List[Dict[str, Any]], min_iou: float = 0.0
+    raw_image: npt.NDArray, detections: List[Dict[str, Any]], min_conf: float = 0.0
 ):
+    """
+    Draw legend and annotations on the image for the given list of detections
+    and confidence threshold.
+    """
     image = OutputImage(raw_image.copy())
     img_width, img_height = image.shape[1], image.shape[0]
 
-    if min_iou > 0.0:
-        filtered_detections = [det for det in detections if det["conf"] >= min_iou]
+    if min_conf > 0.0:
+        filtered_detections = [det for det in detections if det["conf"] >= min_conf]
     else:
         filtered_detections = detections
 
@@ -199,13 +219,12 @@ def generate_image(
             bbox=pred["bbox"], img_w=img_width, img_h=img_height
         )
         obj_class = pred["cls"]
-        # text = class_to_name[obj_class]
         text = f"{pred['conf']:.2f}"
 
         image.draw_bounding_boxes(
             boxes=[bbox],
             categories=[obj_class],
-            colour_map=CLASS_TO_COLOR,
+            color_map=CLASS_TO_COLOR,
             texts=[text],
             line_thickness=1,
             font_scale=0.3,
@@ -222,18 +241,6 @@ def get_file_paths(
     """
     List all files with a given file_type (default: .json) in folder. Returns a
     sorted list.
-
-    Parameters
-    ----------
-    folder : str
-        Folder to list
-    file_type : Optional[Union[str, List[str]]] = None
-        Optionally filter by (list of) file type
-
-    Returns
-    -------
-    List[str]
-        Sorted list of files
     """
     if file_type is None:
         files = os.listdir(folder)
@@ -251,6 +258,9 @@ def get_file_paths(
 def load_yolo_annotations(
     annotation_file: str, is_pred: bool = True
 ) -> List[dict[str, Any]]:
+    """
+    Load YOLO annotations from file and return them as dict.
+    """
     annot_dicts = []
     with open(annotation_file, "r") as f:
         for line in f.readlines():
@@ -280,6 +290,9 @@ def load_yolo_annotations(
 def convert_yolo_bbox_for_img(
     bbox: dict[str, float], img_w: int, img_h: int
 ) -> Tuple[int, int, int, int]:
+    """
+    Convert YOLO bounding box to image coordinates for drawing.
+    """
     x_min = bbox["x_center"] - bbox["width"] / 2
     x_max = bbox["x_center"] + bbox["width"] / 2
     y_min = bbox["y_center"] - bbox["height"] / 2

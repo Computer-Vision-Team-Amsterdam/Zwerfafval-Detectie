@@ -6,6 +6,15 @@ import numpy.typing as npt
 
 
 class OutputImage:
+    """
+    This class is used to annotate an output image based on model predictions.
+
+    Parameters
+    ----------
+    image: npt.NDArray
+        The original image.
+    """
+
     # Predefined colors for 5 categories
     DEFAULT_COLORS: Dict[int, Tuple[int, int, int]] = {
         0: (255, 0, 0),  # Blue
@@ -16,14 +25,6 @@ class OutputImage:
     }
 
     def __init__(self, image: npt.NDArray):
-        """
-        This class is used to blur and annotate an output image based on model predictions.
-
-        Parameters
-        ----------
-        image: npt.NDArray
-            The original image.
-        """
         self.image = image
         self.shape = image.shape
 
@@ -35,7 +36,7 @@ class OutputImage:
         self,
         boxes: Union[List[Tuple[float, float, float, float]], npt.NDArray[np.float64]],
         categories: Optional[List[int]] = None,
-        colour_map: Dict[int, Tuple[int, int, int]] = DEFAULT_COLORS,
+        color_map: Dict[int, Tuple[int, int, int]] = DEFAULT_COLORS,
         box_padding: int = 0,
         line_thickness: int = 3,
         texts: Optional[List[str]] = None,
@@ -52,9 +53,9 @@ class OutputImage:
         categories : Optional[List[int]] (default: None)
             Optional: the category of each bounding box. If not provided, colour
             is set to "red".
-        colour_map : Dict[int, Tuple[int, int, int]]
-            Dictionary of colours for each category, in the format `{category:
-            (255, 255, 255)}`.
+        color_map : Dict[int, Tuple[int, int, int]]
+            Dictionary of BGR colors for each category, in the format
+            `{category: (255, 255, 255)}`.
         box_padding : int (default: 0)
             Optional: increase box by this amount of pixels before drawing.
         line_thickness : int (default: 3)
@@ -70,7 +71,7 @@ class OutputImage:
         img_height, img_width, _ = self.image.shape
 
         if categories is not None:
-            colours = [colour_map[category] for category in categories]
+            colours = [color_map[category] for category in categories]
         else:
             colours = [(255, 0, 0)] * len(boxes)
 
@@ -89,10 +90,6 @@ class OutputImage:
                 )
                 continue
 
-            # logger.debug(
-            #     f"Drawing: {(x_min, y_min)} -> {(x_max, y_max)} in colour {colour}"
-            # )
-
             self.image = cv2.rectangle(
                 self.image,
                 (x_min, y_min),
@@ -102,16 +99,9 @@ class OutputImage:
             )
 
             if texts is not None:
-                (text_width, text_height), baseline = cv2.getTextSize(
+                _, baseline = cv2.getTextSize(
                     texts[i], cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness
                 )
-                # cv2.rectangle(
-                #     self.image,
-                #     (x_min, y_min - text_height - baseline),
-                #     (x_min + text_width, y_min),
-                #     colour,
-                #     thickness=cv2.FILLED,
-                # )
                 cv2.putText(
                     self.image,
                     texts[i],
@@ -132,6 +122,24 @@ class OutputImage:
         font_scale: float = 0.5,
         font_thickness: int = 1,
     ) -> None:
+        """
+        Draw a legend on the image for the specified list of categories.
+
+        Parameters
+        ----------
+        origin : Tuple[int, int]
+            Origin (top right corner) of the legend in pixels (X, Y)
+        categories : List[int]
+            List of categories for which to draw the legend.
+        category_names : Dict[int, str]
+            Mapping from categories to category names.
+        colour_map : Dict[int, Tuple[int, int, int]] (default: DEFAULT_COLORS)
+            Mapping from categories to colors.
+        font_scale : float (default: 0.5)
+            Font scale for the text.
+        font_thickness : int (default: 1)
+            Thickness of the text.
+        """
 
         x_min, y_min = origin
 
