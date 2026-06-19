@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 from pydantic import BaseModel
 
@@ -50,15 +50,6 @@ class TrainingPipelineSpec(SettingsSpecModel):
     model_parameters: TrainingModelParameters
     inputs: Dict[str, str] = None
     outputs: Dict[str, str] = None
-    # sweep_mode: bool = False
-    # sweep_trials: int = 1
-
-
-class WandbSpec(SettingsSpecModel):
-    api_key: str
-    mode: str = "disabled"
-    entity: Optional[str] = None
-    project_name: str
 
 
 class ZwerfafvalDetectieSettingsSpec(SettingsSpecModel):
@@ -69,4 +60,3 @@ class ZwerfafvalDetectieSettingsSpec(SettingsSpecModel):
     aml_experiment_details: AMLExperimentDetailsSpec
     logging: LoggingSpec = LoggingSpec()
     training_pipeline: TrainingPipelineSpec = None
-    wandb: WandbSpec = None

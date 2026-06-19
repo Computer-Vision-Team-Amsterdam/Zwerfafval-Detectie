@@ -3,12 +3,9 @@ import os
 import sys
 from typing import Dict, Optional
 
-# import wandb
 import yaml
 from azure.ai.ml.constants import AssetTypes
 from mldesigner import Input, Output, command_component
-
-# ultralytics_settings.update({"wandb": True})
 from ultralytics import YOLO  # noqa: E402
 from ultralytics import settings as ultralytics_settings
 
@@ -51,10 +48,6 @@ def load_training_parameters(json_file: Optional[str]) -> Dict:
 
     parameters = {k: v["value"] for k, v in config.get("parameters", {}).items()}
     return parameters
-
-
-# def _wandb_config_callback(trainer):
-#     wandb.config.train = vars(trainer.args)
 
 
 @command_component(
@@ -143,16 +136,7 @@ def train_model(
 
     train_params.update(train_params_from_json)  # Update with dynamically loaded params
 
-    # wandb.init(
-    #     job_type="training",
-    #     entity=settings["wandb"]["entity"],
-    #     project=settings["wandb"]["project_name"],
-    #     name=experiment_name,
-    # )
-
     model = YOLO(model=pretrained_model_path, task="detect")
-
-    # model.add_callback("on_train_start", _wandb_config_callback)
 
     # Train the model
     model.train(**train_params)

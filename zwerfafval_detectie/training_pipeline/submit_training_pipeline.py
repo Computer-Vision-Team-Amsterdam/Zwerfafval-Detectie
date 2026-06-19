@@ -39,22 +39,13 @@ def training_pipeline():
         type=AssetTypes.URI_FOLDER,
         path=model_weights_path,
     )
-    # if settings["training_pipeline"]["sweep_mode"]:
-    # train_model_step = sweep_model(
-    #     mounted_dataset=training_data, model_weights=model_weights
-    # )
-    # else:
+
     train_model_step = train_model(
         mounted_dataset=training_data, model_weights=model_weights
     )
     train_model_step.outputs.yolo_yaml_path = Output(
         type="uri_folder", mode="rw_mount", path=model_weights_path
     )
-
-    # train_model_step.environment_variables = {
-    #     "WANDB_API_KEY": settings["wandb"]["api_key"],
-    #     "WANDB_MODE": settings["wandb"]["mode"],
-    # }
 
     project_path = os.path.join(project_datastore_path, project_rel_path)
     train_model_step.outputs.project_path = Output(

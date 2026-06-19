@@ -9,13 +9,12 @@ aml_experiment_details:
 
 training_pipeline:
   model_parameters:
-    img_size: 1280
-    batch: 8
+    img_size: 1920
+    batch: 2
     epochs: 250
-    n_classes: 1  # 3
-    name_classes: ["zwerfafval_grof"]  # ["zwerfafval_fijn", "zwerfafval_grof", "grofvuil"]
+    n_classes: 3
+    name_classes: ["zwerfafval_grof", "zwerfafval_fijn", "grofvuil"]
     cache: True  # cache dataset in RAM
-    # The following settings are ignored in sweep mode and will instead be taken from the sweep_config_file.
     patience: 0
     cos_lr: True
     seed: 0
@@ -24,23 +23,14 @@ training_pipeline:
     dfl: 1.5
   inputs:
     datastore_path: "experiments"
-    training_data_rel_path: "zwerfafval/dataset_v1-1_extra"
+    training_data_rel_path: "zwerfafval/dataset_v1-3_extra"
     model_weights_rel_path: "zwerfafval/model"
-    model_name: "yolo26s.pt"
-    model_config_file: "" # can be an empty string or omitted entirely
-    # sweep_config_file: ""
+    model_name: "yolo26m.pt"
+    model_config_file: "model_parameters.json" # can be an empty string or omitted entirely
   outputs:
     project_datastore_path: "experiments"
     project_rel_path: "zwerfafval/train"
-    experiment_name: "yolo26s_1280_v1-1_extra_250"  # subfolder name to store results in, can be an empty string or omitted entirely, will be ignored in sweep mode
-  # sweep_mode: False  # Set to true to run a hyperparameter sweep based on inputs/sweep_config_file
-  # sweep_trials: 1 # will be ignored in train mode
-
-wandb:
-  api_key: ""
-  mode: "offline"
-  entity: ""  # W&B entity to log the run to (default: null)
-  project_name: ""  # W&B project name
+    experiment_name: "yolo26m_1920_v1-2_extra_250"  # subfolder name to store results in, can be an empty string or omitted entirely
 
 logging:
   loglevel_own: INFO  # override loglevel for packages defined in `own_packages`
