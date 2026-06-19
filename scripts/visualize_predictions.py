@@ -6,23 +6,58 @@ import cv2
 import numpy.typing as npt
 from output_image import OutputImage
 
-window_name = "Visualize YOLO predictions"
+WINDOW_NAME = "Visualize YOLO predictions"
 
-class_to_name = {
+CLASS_TO_NAME = {
     0: "Zwerfafval_grof",
     1: "Zwerfafval_fijn",
     2: "Grofvuil",
 }
 
-class_to_color = {
+CLASS_TO_COLOR = {
     0: (140, 0, 227),
     1: (242, 188, 0),
     2: (90, 20, 40),
 }
 
+STATE_PREDICTIONS = 0
+STATE_LABELS = 1
+
+raw_image: npt.NDArray
+labels: List[Dict[str, Any]]
+predictions: List[Dict[str, Any]]
+
+min_iou = 0.0
+current_state = STATE_PREDICTIONS
+
+
+def change_iou(value):
+    global min_iou
+    min_iou = value / 100
+    refresh_images()
+    show_image()
+
+
+def refresh_images():
+    global pred_image
+    global label_image
+    pred_image = generate_image(raw_image, predictions, min_iou)
+    label_image = generate_image(raw_image, labels)
+
+
+def show_image():
+    if current_state == STATE_PREDICTIONS:
+        cv2.imshow(WINDOW_NAME, pred_image.get_image())
+    elif current_state == STATE_LABELS:
+        cv2.imshow(WINDOW_NAME, label_image.get_image())
+    else:
+        print(f"Illegal state: {current_state}")
+
 
 def visualize_predictions(
-    images_folder: str, predictions_folder: str, labels_folder: Optional[str] = None
+    images_folder: str,
+    predictions_folder: str,
+    labels_folder: Optional[str] = None,
 ):
     print(
         "\n======\n"
@@ -33,7 +68,13 @@ def visualize_predictions(
         "\n======\n"
     )
 
-    cv2.namedWindow(window_name)
+    global predictions
+    global labels
+    global raw_image
+    global current_state
+
+    cv2.namedWindow(WINDOW_NAME)
+    cv2.createTrackbar("IoU", WINDOW_NAME, 0, 100, change_iou)
 
     print("Scanning input folders...")
     image_files = get_file_paths(images_folder, [".jpg", ".jpeg", ".png"])
@@ -62,7 +103,6 @@ def visualize_predictions(
         else:
             print(f"No predictions found for image {image_file}")
             predictions = []
-        pred_image = generate_image(raw_image, predictions)
 
         labels = []
         if labels_folder is not None:
@@ -71,71 +111,82 @@ def visualize_predictions(
                 labels = load_yolo_annotations(label_file_path, is_pred=False)
             else:
                 print(f"No labels found for image {image_file}")
-            label_image = generate_image(raw_image, labels)
+
+        refresh_images()
 
         cv2.setWindowTitle(
-            window_name,
+            WINDOW_NAME,
             f"Showing predictions for image {image_file} ({idx}/{n_images})",
         )
-        cv2.imshow(window_name, pred_image.get_image())
+        show_image()
 
         # The function waitKey waits for a key event infinitely (when delay<=0)
         k = None
         while True:
             k = cv2.waitKey(0)
-            if k in [81]:
-                # [left]: previous image
+            if k in [44]:
+                # [<]: previous image
                 idx -= 1
                 break
-            elif k in [82]:
-                # [up]: show label image
-                if labels_folder is not None:
-                    cv2.setWindowTitle(
-                        window_name,
-                        f"Showing labels for image {image_file} ({idx}/{n_images})",
-                    )
-                    cv2.imshow(window_name, label_image.get_image())
-                else:
-                    pass
-            elif k in [83]:
+            elif k in [46]:
                 # [right]: next image
                 idx += 1
                 break
-            elif k in [84]:
-                # [down]: show prediction image
+            elif k in [108]:
+                # [L]: show label image
+                if labels_folder is not None:
+                    current_state = STATE_LABELS
+                    cv2.setWindowTitle(
+                        WINDOW_NAME,
+                        f"Showing labels for image {image_file} ({idx}/{n_images})",
+                    )
+                    show_image()
+                else:
+                    pass
+
+            elif k in [112]:
+                # [P]: show prediction image
+                current_state = STATE_PREDICTIONS
                 cv2.setWindowTitle(
-                    window_name,
+                    WINDOW_NAME,
                     f"Showing predictions for image {image_file} ({idx}/{n_images})",
                 )
-                cv2.imshow(window_name, pred_image.get_image())
+                show_image()
             elif k == 27:
                 # [esc] to exit the program
                 print("Exiting")
-                cv2.destroyWindow(window_name)
+                cv2.destroyWindow(WINDOW_NAME)
                 return
             else:
                 print("Key not valid...")
 
     print("All images viewed.")
     print("Exiting")
-    cv2.destroyWindow(window_name)
+    cv2.destroyWindow(WINDOW_NAME)
     return
 
 
-def generate_image(raw_image: npt.NDArray, detections: List[Dict[str, Any]]):
+def generate_image(
+    raw_image: npt.NDArray, detections: List[Dict[str, Any]], min_iou: float = 0.0
+):
     image = OutputImage(raw_image.copy())
     img_width, img_height = image.shape[1], image.shape[0]
 
-    if len(detections) > 0:
+    if min_iou > 0.0:
+        filtered_detections = [det for det in detections if det["conf"] >= min_iou]
+    else:
+        filtered_detections = detections
+
+    if len(filtered_detections) > 0:
         cats = sorted(set([dets["cls"] for dets in detections]))
         image.draw_legend(
             origin=(img_width - 100, 100),
             categories=cats,
-            category_names=class_to_name,
-            colour_map=class_to_color,
+            category_names=CLASS_TO_NAME,
+            colour_map=CLASS_TO_COLOR,
         )
 
-    for pred in detections:
+    for pred in filtered_detections:
         bbox = convert_yolo_bbox_for_img(
             bbox=pred["bbox"], img_w=img_width, img_h=img_height
         )
@@ -146,7 +197,7 @@ def generate_image(raw_image: npt.NDArray, detections: List[Dict[str, Any]]):
         image.draw_bounding_boxes(
             boxes=[bbox],
             categories=[obj_class],
-            colour_map=class_to_color,
+            colour_map=CLASS_TO_COLOR,
             texts=[text],
             line_thickness=1,
             font_scale=0.3,
