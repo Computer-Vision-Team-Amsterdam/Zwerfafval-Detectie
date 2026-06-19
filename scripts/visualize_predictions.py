@@ -23,147 +23,155 @@ CLASS_TO_COLOR = {
 STATE_PREDICTIONS = 0
 STATE_LABELS = 1
 
-raw_image: npt.NDArray
-labels: List[Dict[str, Any]]
-predictions: List[Dict[str, Any]]
 
-min_iou = 0.0
-current_state = STATE_PREDICTIONS
+class PredictionVisualizer:
 
+    raw_image: npt.NDArray
+    labels: List[Dict[str, Any]]
+    predictions: List[Dict[str, Any]]
 
-def change_iou(value):
-    global min_iou
-    min_iou = value / 100
-    refresh_images()
-    show_image()
+    min_iou = 0.0
+    current_state = STATE_PREDICTIONS
 
+    def __init__(
+        self,
+        images_folder: str,
+        predictions_folder: str,
+        labels_folder: Optional[str] = None,
+    ):
+        self.images_folder = images_folder
+        self.predictions_folder = predictions_folder
+        self.labels_folder = labels_folder
 
-def refresh_images():
-    global pred_image
-    global label_image
-    pred_image = generate_image(raw_image, predictions, min_iou)
-    label_image = generate_image(raw_image, labels)
-
-
-def show_image():
-    if current_state == STATE_PREDICTIONS:
-        cv2.imshow(WINDOW_NAME, pred_image.get_image())
-    elif current_state == STATE_LABELS:
-        cv2.imshow(WINDOW_NAME, label_image.get_image())
-    else:
-        print(f"Illegal state: {current_state}")
-
-
-def visualize_predictions(
-    images_folder: str,
-    predictions_folder: str,
-    labels_folder: Optional[str] = None,
-):
-    print(
-        "\n======\n"
-        "Visualize YOLO predictions.\n"
-        "Press [RIGHT] or [LEFT] to move between images.\n"
-        "Press [UP] and [DOWN] to toggle between predictions and truth labels (if available).\n"
-        "Press [ESC] to exit."
-        "\n======\n"
-    )
-
-    global predictions
-    global labels
-    global raw_image
-    global current_state
-
-    cv2.namedWindow(WINDOW_NAME)
-    cv2.createTrackbar("IoU", WINDOW_NAME, 0, 100, change_iou)
-
-    print("Scanning input folders...")
-    image_files = get_file_paths(images_folder, [".jpg", ".jpeg", ".png"])
-    print(f" - Found {len(image_files)} image files")
-    prediction_files = set(get_file_paths(predictions_folder, [".txt"]))
-    print(f" - Found {len(prediction_files)} prediction files")
-    if labels_folder is not None:
-        label_files = set(get_file_paths(labels_folder, [".txt"]))
-        print(f" - Found {len(label_files)} label files")
-    else:
-        label_files = set()
-
-    n_images = len(image_files)
-    idx = 0
-
-    while idx < n_images:
-        image_file = image_files[idx]
-        file_name = os.path.splitext(image_file)[0]
-        img_file_path = os.path.join(images_folder, image_file)
-
-        raw_image = cv2.imread(img_file_path)
-
-        if f"{file_name}.txt" in prediction_files:
-            pred_file_path = os.path.join(predictions_folder, f"{file_name}.txt")
-            predictions = load_yolo_annotations(pred_file_path)
-        else:
-            print(f"No predictions found for image {image_file}")
-            predictions = []
-
-        labels = []
-        if labels_folder is not None:
-            if f"{file_name}.txt" in label_files:
-                label_file_path = os.path.join(labels_folder, f"{file_name}.txt")
-                labels = load_yolo_annotations(label_file_path, is_pred=False)
-            else:
-                print(f"No labels found for image {image_file}")
-
-        refresh_images()
-
-        cv2.setWindowTitle(
-            WINDOW_NAME,
-            f"Showing predictions for image {image_file} ({idx}/{n_images})",
+        print(
+            "\n======\n"
+            "Visualize YOLO predictions.\n"
+            "Press [RIGHT] or [LEFT] to move between images.\n"
+            "Press [UP] and [DOWN] to toggle between predictions and truth labels (if available).\n"
+            "Press [ESC] to exit."
+            "\n======\n"
         )
-        show_image()
 
-        # The function waitKey waits for a key event infinitely (when delay<=0)
-        k = None
-        while True:
-            k = cv2.waitKey(0)
-            if k in [44]:
-                # [<]: previous image
-                idx -= 1
-                break
-            elif k in [46]:
-                # [right]: next image
-                idx += 1
-                break
-            elif k in [108]:
-                # [L]: show label image
-                if labels_folder is not None:
-                    current_state = STATE_LABELS
+        self.scan_folders()
+        self.visualize_predictions()
+
+    def scan_folders(self) -> None:
+        print("Scanning input folders...")
+
+        self.image_files = get_file_paths(self.images_folder, [".jpg", ".jpeg", ".png"])
+        print(f" - Found {len(self.image_files)} image files")
+
+        self.prediction_files = set(get_file_paths(self.predictions_folder, [".txt"]))
+        print(f" - Found {len(self.prediction_files)} prediction files")
+
+        if self.labels_folder is not None:
+            self.label_files = set(get_file_paths(self.labels_folder, [".txt"]))
+            print(f" - Found {len(self.label_files)} label files")
+        else:
+            self.label_files = set()
+
+    def change_iou(self, new_value: int) -> None:
+        self.min_iou = new_value / 100
+        self.refresh_images()
+        self.show_image()
+
+    def refresh_images(self) -> None:
+        self.pred_image = generate_image(self.raw_image, self.predictions, self.min_iou)
+        self.label_image = generate_image(self.raw_image, self.labels)
+
+    def show_image(self) -> None:
+        if self.current_state == STATE_PREDICTIONS:
+            cv2.imshow(WINDOW_NAME, self.pred_image.get_image())
+        elif self.current_state == STATE_LABELS:
+            cv2.imshow(WINDOW_NAME, self.label_image.get_image())
+        else:
+            print(f"Illegal state: {self.current_state}")
+
+    def visualize_predictions(self) -> None:
+        cv2.namedWindow(WINDOW_NAME)
+        cv2.createTrackbar("IoU", WINDOW_NAME, 0, 100, self.change_iou)
+
+        n_images = len(self.image_files)
+        idx = 0
+
+        while idx < n_images:
+            image_file = self.image_files[idx]
+            file_name = os.path.splitext(image_file)[0]
+            img_file_path = os.path.join(self.images_folder, image_file)
+
+            self.raw_image = cv2.imread(img_file_path)
+
+            if f"{file_name}.txt" in self.prediction_files:
+                pred_file_path = os.path.join(
+                    self.predictions_folder, f"{file_name}.txt"
+                )
+                self.predictions = load_yolo_annotations(pred_file_path)
+            else:
+                print(f"No predictions found for image {image_file}")
+                self.predictions = []
+
+            self.labels = []
+            if self.labels_folder is not None:
+                if f"{file_name}.txt" in self.label_files:
+                    label_file_path = os.path.join(
+                        self.labels_folder, f"{file_name}.txt"
+                    )
+                    self.labels = load_yolo_annotations(label_file_path, is_pred=False)
+                else:
+                    print(f"No labels found for image {image_file}")
+
+            self.refresh_images()
+
+            cv2.setWindowTitle(
+                WINDOW_NAME,
+                f"Showing predictions for image {image_file} ({idx}/{n_images})",
+            )
+            self.show_image()
+
+            # The function waitKey waits for a key event infinitely (when delay<=0)
+            k = None
+            while True:
+                k = cv2.waitKey(0)
+                if k in [44]:
+                    # [<]: previous image
+                    idx -= 1
+                    break
+                elif k in [46]:
+                    # [right]: next image
+                    idx += 1
+                    break
+                elif k in [108]:
+                    # [L]: show label image
+                    if self.labels_folder is not None:
+                        self.current_state = STATE_LABELS
+                        cv2.setWindowTitle(
+                            WINDOW_NAME,
+                            f"Showing labels for image {image_file} ({idx}/{n_images})",
+                        )
+                        self.show_image()
+                    else:
+                        pass
+
+                elif k in [112]:
+                    # [P]: show prediction image
+                    self.current_state = STATE_PREDICTIONS
                     cv2.setWindowTitle(
                         WINDOW_NAME,
-                        f"Showing labels for image {image_file} ({idx}/{n_images})",
+                        f"Showing predictions for image {image_file} ({idx}/{n_images})",
                     )
-                    show_image()
+                    self.show_image()
+                elif k == 27:
+                    # [esc] to exit the program
+                    print("Exiting")
+                    cv2.destroyWindow(WINDOW_NAME)
+                    return
                 else:
-                    pass
+                    print("Key not valid...")
 
-            elif k in [112]:
-                # [P]: show prediction image
-                current_state = STATE_PREDICTIONS
-                cv2.setWindowTitle(
-                    WINDOW_NAME,
-                    f"Showing predictions for image {image_file} ({idx}/{n_images})",
-                )
-                show_image()
-            elif k == 27:
-                # [esc] to exit the program
-                print("Exiting")
-                cv2.destroyWindow(WINDOW_NAME)
-                return
-            else:
-                print("Key not valid...")
-
-    print("All images viewed.")
-    print("Exiting")
-    cv2.destroyWindow(WINDOW_NAME)
-    return
+        print("All images viewed.")
+        print("Exiting")
+        cv2.destroyWindow(WINDOW_NAME)
+        return
 
 
 def generate_image(
@@ -315,7 +323,7 @@ def main():
     predictions_folder = args.predictions_folder
     labels_folder = args.labels_folder
 
-    visualize_predictions(images_folder, predictions_folder, labels_folder)
+    _ = PredictionVisualizer(images_folder, predictions_folder, labels_folder)
 
 
 if __name__ == "__main__":
