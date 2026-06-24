@@ -1,0 +1,42 @@
+customer: ""
+
+aml_experiment_details:
+  experiment_name: "zwerfafval_detectie"
+  compute_name: gpu-inference-cluster
+  env_name: yolo-environment
+  env_version: 22
+  src_dir: "."
+
+training_pipeline:
+  model_parameters:
+    img_size: 1920
+    batch: 2
+    epochs: 250
+    n_classes: 3
+    name_classes: ["zwerfafval_grof", "zwerfafval_fijn", "grofvuil"]
+    cache: True  # cache dataset in RAM
+    patience: 0
+    cos_lr: True
+    seed: 0
+    box: 7.5
+    cls: 0.5
+    dfl: 1.5
+  inputs:
+    datastore_path: "experiments"
+    training_data_rel_path: "zwerfafval/dataset_v1-3_extra"
+    model_weights_rel_path: "zwerfafval/model"
+    model_name: "yolo26m.pt"
+    model_config_file: "model_parameters.json" # can be an empty string or omitted entirely
+  outputs:
+    project_datastore_path: "experiments"
+    project_rel_path: "zwerfafval/train"
+    experiment_name: "yolo26m_1920_v1-2_extra_250"  # subfolder name to store results in, can be an empty string or omitted entirely
+
+logging:
+  loglevel_own: INFO  # override loglevel for packages defined in `own_packages`
+  own_packages: ["__main__", "zwerfafval_detectie"]
+  basic_config:
+    # log config as arguments to `logging.basicConfig`
+    level: WARNING
+    format: "%(asctime)s|||%(levelname)-8s|%(name)s|%(message)s"
+    datefmt: "%Y-%m-%d %H:%M:%S"
