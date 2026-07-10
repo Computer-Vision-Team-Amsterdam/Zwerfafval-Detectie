@@ -52,4 +52,4 @@ uv run --extra dev python scripts/visualize_predictions.py --images_folder /path
 
 ## Model evaluation
 
-TODO
+The [evaluation notebook](notebooks/evaluate.ipynb) can be used to measure the performance of a trained model on a validation or test set.
