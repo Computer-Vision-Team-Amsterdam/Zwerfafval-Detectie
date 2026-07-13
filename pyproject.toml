@@ -32,6 +32,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "azure-identity-broker",
+    "dataframe_image", 
+    "html2image",
     "ipykernel==6.*",
     "ipywidgets",
     "nbstripout>=0.7.1",
