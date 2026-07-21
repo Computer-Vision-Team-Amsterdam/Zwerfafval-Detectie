@@ -1,0 +1,293 @@
+import os
+from typing import Dict, List, Tuple, Union
+
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+
+from zwerfafval_detectie.utils_eval import read_annotations_folder
+
+
+class Evaluator:
+
+    DEFAULT_CATEGORIES = {0: "Zwerfafval (grof)", 1: "Zwerfafval (fijn)"}
+    DEFAULT_CONFIDENCE = 0.0
+
+    def __init__(
+        self,
+        predictions_folder: str,
+        labels_folder: str,
+        output_folder: str,
+        experiment_name: str,
+        categories: Dict[int, str] = DEFAULT_CATEGORIES,
+        confidence: float = DEFAULT_CONFIDENCE,
+    ):
+        self.output_folder = output_folder
+        self.experiment_name = experiment_name
+        self.categories = categories
+        self.confidence = confidence
+
+        self.dummy_series = pd.Series(
+            data={cat_id: 0.0 for cat_id in self.categories.keys()}
+        )
+        self.categories_extra: Dict[Union[int, str], str] = {
+            key: value for key, value in self.categories.items()
+        }
+        self.categories_extra["total"] = "Totaal"
+
+        self.labels_gdf = read_annotations_folder(
+            folder_path=labels_folder,
+            categories=self.categories.keys(),
+        )
+        self.pred_gdf = read_annotations_folder(
+            folder_path=predictions_folder,
+            categories=self.categories.keys(),
+        )
+
+        self._prep_precision_recall()
+
+        os.makedirs(output_folder, exist_ok=True)
+
+    def get_predictions(self) -> gpd.GeoDataFrame:
+        return self.pred_gdf
+
+    def get_labels(self) -> gpd.GeoDataFrame:
+        return self.labels_gdf
+
+    def _prep_precision_recall(self) -> None:
+        # Prepare recall and precision data
+        _recall_dfs: List[pd.DataFrame] = []
+
+        for cat in self.categories.keys():
+            _labels_tmp = self.labels_gdf[self.labels_gdf["category"] == cat]
+            _pred_tmp = self.pred_gdf[self.pred_gdf["category"] == cat]
+            _recall_dfs.append(
+                (
+                    _labels_tmp.set_geometry(_labels_tmp.centroid)
+                    .sjoin(
+                        _pred_tmp,
+                        how="left",
+                        predicate="covered_by",
+                        on_attribute="file_name",
+                    )
+                    .reset_index()
+                    .sort_values(by="confidence_right", ascending=False)
+                    .drop_duplicates(subset="index")
+                    .set_index("index")
+                    .sort_index()
+                )
+            )
+
+        self.recall_df = pd.concat(_recall_dfs).sort_index()
+
+        _precision_df = self.pred_gdf.sjoin(
+            self.labels_gdf.set_geometry(self.labels_gdf.centroid),
+            how="left",
+            predicate="contains",
+            on_attribute="file_name",
+        )
+        _precision_df["match_cat"] = (
+            _precision_df["category_left"] == _precision_df["category_right"]
+        )
+        self.precision_df = pd.DataFrame(
+            _precision_df.reset_index()
+            .sort_values(by="match_cat", ascending=False)
+            .drop_duplicates(subset="index")
+            .drop(columns="match_cat")
+            .set_index("index")
+            .sort_index()
+        )
+
+    def compute_recall(
+        self, conf: float = DEFAULT_CONFIDENCE, class_agnostic: bool = False
+    ) -> Union[pd.Series, float]:
+        gt_total = self.recall_df.value_counts(subset="category_left")
+
+        expression = "(`confidence_right` >= @conf)"
+        if not class_agnostic:
+            expression += " and (`category_right` == `category_left`)"
+        _temp = self.recall_df.query(expr=expression).value_counts(
+            subset="category_left"
+        )
+        pred_total = self.dummy_series.copy()
+        pred_total.loc[_temp.index] = _temp
+
+        recall_overall = (
+            pred_total.sum() / gt_total.sum() if gt_total.sum() > 0 else np.nan
+        )
+
+        if class_agnostic:
+            return recall_overall
+        else:
+            recall = pred_total / gt_total
+            recall["total"] = recall_overall
+            return recall
+
+    def compute_precision(
+        self,
+        conf: float = DEFAULT_CONFIDENCE,
+        class_agnostic: bool = False,
+    ) -> Union[pd.Series, float]:
+        _precision_df = self.precision_df[self.precision_df["confidence_left"] >= conf]
+        pred_total = _precision_df.value_counts(subset="category_left")
+
+        expression = "(`confidence_right` == 1.0)"
+        if not class_agnostic:
+            expression += " and (`category_right` == `category_left`)"
+        _temp = _precision_df.query(expr=expression).value_counts(
+            subset="category_left"
+        )
+        gt_total = self.dummy_series.copy()
+        gt_total.loc[_temp.index] = _temp
+
+        precision_overall = (
+            gt_total.sum() / pred_total.sum() if pred_total.sum() > 0 else np.nan
+        )
+
+        if class_agnostic:
+            return precision_overall
+        else:
+            precision = gt_total / pred_total
+            precision["total"] = precision_overall
+            return precision
+
+    def get_precision_recall_stats(self) -> pd.DataFrame:
+        # Compute statistics over a range of confidence thresholds
+
+        conf_values = np.arange(0.0, 1.01, 0.05)
+
+        data = {
+            "confidence": conf_values,
+        }
+
+        precision: List[pd.Series] = [
+            self.compute_precision(conf=c, class_agnostic=False) for c in conf_values
+        ]
+        recall: List[pd.Series] = [
+            self.compute_recall(conf=c, class_agnostic=False) for c in conf_values
+        ]
+
+        for cat_id, cat_name in self.categories_extra.items():
+            data[f"Precision - {cat_name}"] = [
+                result.loc[cat_id] for result in precision
+            ]
+            data[f"Recall - {cat_name}"] = [result.loc[cat_id] for result in recall]
+
+        self.precision_recall_df = pd.DataFrame(data=data).set_index("confidence")
+        return self.precision_recall_df
+
+    def get_f_score(self, beta: float = 1.0) -> pd.DataFrame:
+        # Compute f_beta-score for a chosen version of beta (e.g. f1 score)
+
+        if not hasattr(self, "precision_recall_df"):
+            print("Calling get_precision_recall_stats() first...")
+            self.get_precision_recall_stats()
+
+        _cats_p = [
+            "Precision - Totaal",
+            "Precision - Zwerfafval (grof)",
+            "Precision - Zwerfafval (fijn)",
+        ]
+        _cats_r = [
+            "Recall - Totaal",
+            "Recall - Zwerfafval (grof)",
+            "Recall - Zwerfafval (fijn)",
+        ]
+
+        f_score: pd.DataFrame = (
+            (1 + np.power(beta, 2))
+            * self.precision_recall_df[_cats_p].mul(
+                self.precision_recall_df[_cats_r].values
+            )
+        ) / (
+            np.power(beta, 2)
+            * self.precision_recall_df[_cats_p].add(
+                self.precision_recall_df[_cats_r].values
+            )
+        )
+        f_score.columns = f_score.columns.str.replace("Precision", "F-score")
+        return f_score
+
+    def get_confusion_matrix(
+        self, conf: float = DEFAULT_CONFIDENCE
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        conf_precision_df = (
+            self.precision_df[self.precision_df["confidence_left"] >= conf][
+                ["category_left", "category_right"]
+            ]
+            .fillna("Background")
+            .groupby("category_left")
+            .value_counts()
+            .unstack()
+            .rename_axis(None)
+            .rename_axis(None, axis=1)
+            .rename(index=self.categories, columns=self.categories)
+        )
+
+        conf_recall_df = (
+            self.recall_df[
+                self.recall_df["category_right"].isna()
+                | (self.recall_df["confidence_right"] <= conf)
+            ][["category_left", "category_right"]]
+            .fillna("Background")
+            .groupby("category_left")
+            .count()
+            .transpose()
+            .rename_axis(None)
+            .rename_axis(None, axis=1)
+            .rename(columns=self.categories)
+            .rename(index={"category_right": "Background"})
+        )
+
+        columns = ["Zwerfafval (grof)", "Zwerfafval (fijn)"]
+        if "Background" in conf_precision_df.columns:
+            columns.append("Background")
+
+        conf_df = pd.concat((conf_precision_df, conf_recall_df))[columns]
+        conf_df.index = pd.MultiIndex.from_product([["Prediction"], conf_df.index])
+        conf_df.columns = pd.MultiIndex.from_product(
+            [["Ground Truth"], conf_df.columns]
+        )
+
+        conf_df_normalized = conf_df.div(conf_df.sum(axis=0), axis=1)
+
+        return conf_df, conf_df_normalized
+
+    def get_counts(
+        self, conf: float = DEFAULT_CONFIDENCE, class_agnostic: bool = False
+    ) -> pd.DataFrame:
+        labels_sorted = self.labels_gdf.set_index("file_name").sort_index()
+        preds_sorted = (
+            self.pred_gdf[self.pred_gdf["confidence"] >= conf]
+            .set_index("file_name")
+            .sort_index()
+        )
+
+        if class_agnostic:
+            cat_map = {0: "Zwerfafval", 1: "Zwerfafval"}
+        else:
+            cat_map = self.categories
+
+        labels_category_counts = (
+            labels_sorted[["category"]]
+            .replace(cat_map)
+            .groupby(["file_name", "category"])
+            .size()
+            .unstack(fill_value=0)
+        )
+        preds_category_counts = (
+            preds_sorted[["category"]]
+            .replace(cat_map)
+            .groupby(["file_name", "category"])
+            .size()
+            .unstack(fill_value=0)
+        )
+
+        merged = labels_category_counts.join(
+            other=preds_category_counts,
+            how="outer",
+            lsuffix=" (true)",
+            rsuffix=" (pred)",
+        )
+
+        return merged.fillna(0)
