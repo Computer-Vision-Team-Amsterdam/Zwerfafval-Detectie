@@ -1,4 +1,3 @@
-import os
 from typing import Dict, List, Tuple, Union
 
 import geopandas as gpd
@@ -9,6 +8,36 @@ from zwerfafval_detectie.utils_eval import read_annotations_folder
 
 
 class Evaluator:
+    """
+    Evaluator for model prediction results. The methods are specifically
+    designed for "zwerfafval" (litter) objects in street view images, which are
+    assumed to be small in size w.r.t. the image. We care less about predicting
+    the exact bounding box of each object but only check whether it's centroid
+    is covered by a prediction (and vice versa).
+
+    Specifically:
+    - We measure _recall_ based on whether the centroid of a ground truth
+    bounding box is covered by a prediction bounding box.
+    - We measure _precision_ based on whether a prediction bounding box includes
+    the centroid of a ground truth bounding box.
+
+    The Evaluator provides methods to compute the precision/recall curve,
+    F-score curve, confusion matrix, and object counts per image.
+
+    Parameters
+    ----------
+    predictions_folder: str
+        File path to folder with YOLO-style prediction files.
+    labels_folder: str
+        File path to folder with YOLO-style ground truth label files.
+    categories: Dict[int, str] = {0: "Zwerfafval (grof)", 1: "Zwerfafval (fijn)"}
+        Categories to consider, will be used to name columns and possibly filter
+        data if the categories provided here are a subset of the model
+        predictions and labels.
+    confidence: float = 0.0
+        Confidence threshold to filter by when computing the confusion matrix
+        and object counts.
+    """
 
     DEFAULT_CATEGORIES = {0: "Zwerfafval (grof)", 1: "Zwerfafval (fijn)"}
     DEFAULT_CONFIDENCE = 0.0
@@ -17,13 +46,9 @@ class Evaluator:
         self,
         predictions_folder: str,
         labels_folder: str,
-        output_folder: str,
-        experiment_name: str,
         categories: Dict[int, str] = DEFAULT_CATEGORIES,
         confidence: float = DEFAULT_CONFIDENCE,
     ):
-        self.output_folder = output_folder
-        self.experiment_name = experiment_name
         self.categories = categories
         self.confidence = confidence
 
@@ -39,28 +64,28 @@ class Evaluator:
             folder_path=labels_folder,
             categories=self.categories.keys(),
         )
-        self.pred_gdf = read_annotations_folder(
+        self.predictions_gdf = read_annotations_folder(
             folder_path=predictions_folder,
             categories=self.categories.keys(),
         )
 
         self._prep_precision_recall()
 
-        os.makedirs(output_folder, exist_ok=True)
-
     def get_predictions(self) -> gpd.GeoDataFrame:
-        return self.pred_gdf
+        """Get the predictions as GeoDataFrame."""
+        return self.predictions_gdf
 
     def get_labels(self) -> gpd.GeoDataFrame:
+        """Get the ground truth labels as GeoDataFrame."""
         return self.labels_gdf
 
     def _prep_precision_recall(self) -> None:
-        # Prepare recall and precision data
+        """Prepare precision and recall data for later use."""
         _recall_dfs: List[pd.DataFrame] = []
 
         for cat in self.categories.keys():
             _labels_tmp = self.labels_gdf[self.labels_gdf["category"] == cat]
-            _pred_tmp = self.pred_gdf[self.pred_gdf["category"] == cat]
+            _pred_tmp = self.predictions_gdf[self.predictions_gdf["category"] == cat]
             _recall_dfs.append(
                 (
                     _labels_tmp.set_geometry(_labels_tmp.centroid)
@@ -80,7 +105,7 @@ class Evaluator:
 
         self.recall_df = pd.concat(_recall_dfs).sort_index()
 
-        _precision_df = self.pred_gdf.sjoin(
+        _precision_df = self.predictions_gdf.sjoin(
             self.labels_gdf.set_geometry(self.labels_gdf.centroid),
             how="left",
             predicate="contains",
@@ -99,16 +124,17 @@ class Evaluator:
         )
 
     def compute_recall(
-        self, conf: float = DEFAULT_CONFIDENCE, class_agnostic: bool = False
-    ) -> Union[pd.Series, float]:
+        self, confidence_threshold: float = DEFAULT_CONFIDENCE
+    ) -> pd.Series:
+        """
+        Get the recall for a specific confidence threshold.
+        """
         gt_total = self.recall_df.value_counts(subset="category_left")
 
-        expression = "(`confidence_right` >= @conf)"
-        if not class_agnostic:
-            expression += " and (`category_right` == `category_left`)"
-        _temp = self.recall_df.query(expr=expression).value_counts(
-            subset="category_left"
-        )
+        _temp: pd.Series = self.recall_df[
+            (self.recall_df["confidence_right"] >= confidence_threshold)
+            & (self.recall_df["category_right"] == self.recall_df["category_left"])
+        ].value_counts(subset="category_left")
         pred_total = self.dummy_series.copy()
         pred_total.loc[_temp.index] = _temp
 
@@ -116,27 +142,26 @@ class Evaluator:
             pred_total.sum() / gt_total.sum() if gt_total.sum() > 0 else np.nan
         )
 
-        if class_agnostic:
-            return recall_overall
-        else:
-            recall = pred_total / gt_total
-            recall["total"] = recall_overall
-            return recall
+        recall = pred_total / gt_total
+        recall["total"] = recall_overall
+        return recall
 
     def compute_precision(
         self,
-        conf: float = DEFAULT_CONFIDENCE,
-        class_agnostic: bool = False,
-    ) -> Union[pd.Series, float]:
-        _precision_df = self.precision_df[self.precision_df["confidence_left"] >= conf]
+        confidence_threshold: float = DEFAULT_CONFIDENCE,
+    ) -> pd.Series:
+        """
+        Get the precision for a specific confidence threshold.
+        """
+        _precision_df = self.precision_df[
+            self.precision_df["confidence_left"] >= confidence_threshold
+        ]
         pred_total = _precision_df.value_counts(subset="category_left")
 
-        expression = "(`confidence_right` == 1.0)"
-        if not class_agnostic:
-            expression += " and (`category_right` == `category_left`)"
-        _temp = _precision_df.query(expr=expression).value_counts(
-            subset="category_left"
-        )
+        _temp: pd.Series = _precision_df[
+            (_precision_df["confidence_right"] == 1.0)
+            & (_precision_df["category_right"] == _precision_df["category_left"])
+        ].value_counts(subset="category_left")
         gt_total = self.dummy_series.copy()
         gt_total.loc[_temp.index] = _temp
 
@@ -144,15 +169,15 @@ class Evaluator:
             gt_total.sum() / pred_total.sum() if pred_total.sum() > 0 else np.nan
         )
 
-        if class_agnostic:
-            return precision_overall
-        else:
-            precision = gt_total / pred_total
-            precision["total"] = precision_overall
-            return precision
+        precision = gt_total / pred_total
+        precision["total"] = precision_overall
+        return precision
 
     def get_precision_recall_stats(self) -> pd.DataFrame:
-        # Compute statistics over a range of confidence thresholds
+        """
+        Compute precision and recall, for each category and as a total, for a
+        range of confidence thresholds and return the results as a DataFrame.
+        """
 
         conf_values = np.arange(0.0, 1.01, 0.05)
 
@@ -161,10 +186,10 @@ class Evaluator:
         }
 
         precision: List[pd.Series] = [
-            self.compute_precision(conf=c, class_agnostic=False) for c in conf_values
+            self.compute_precision(confidence_threshold=c) for c in conf_values
         ]
         recall: List[pd.Series] = [
-            self.compute_recall(conf=c, class_agnostic=False) for c in conf_values
+            self.compute_recall(confidence_threshold=c) for c in conf_values
         ]
 
         for cat_id, cat_name in self.categories_extra.items():
@@ -177,7 +202,12 @@ class Evaluator:
         return self.precision_recall_df
 
     def get_f_score(self, beta: float = 1.0) -> pd.DataFrame:
-        # Compute f_beta-score for a chosen version of beta (e.g. f1 score)
+        """
+        Compute `f_beta-score` for a chosen version of beta (e.g. f1 score when
+        beta=1). Uses the result of `get_precision_recall_stats()` as input;
+        will call this method if it hasn't been called yet. Returns the F-score
+        over a range of confidence thresholds as DataFrame.
+        """
 
         if not hasattr(self, "precision_recall_df"):
             print("Calling get_precision_recall_stats() first...")
@@ -209,12 +239,16 @@ class Evaluator:
         return f_score
 
     def get_confusion_matrix(
-        self, conf: float = DEFAULT_CONFIDENCE
+        self, confidence_threshold: float = DEFAULT_CONFIDENCE
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Get the confusion matrix and the normalized confusion matrix for a given
+        confidence threshold as DataFrames.
+        """
         conf_precision_df = (
-            self.precision_df[self.precision_df["confidence_left"] >= conf][
-                ["category_left", "category_right"]
-            ]
+            self.precision_df[
+                self.precision_df["confidence_left"] >= confidence_threshold
+            ][["category_left", "category_right"]]
             .fillna("Background")
             .groupby("category_left")
             .value_counts()
@@ -227,7 +261,7 @@ class Evaluator:
         conf_recall_df = (
             self.recall_df[
                 self.recall_df["category_right"].isna()
-                | (self.recall_df["confidence_right"] <= conf)
+                | (self.recall_df["confidence_right"] <= confidence_threshold)
             ][["category_left", "category_right"]]
             .fillna("Background")
             .groupby("category_left")
@@ -254,11 +288,20 @@ class Evaluator:
         return conf_df, conf_df_normalized
 
     def get_counts(
-        self, conf: float = DEFAULT_CONFIDENCE, class_agnostic: bool = False
+        self,
+        confidence_threshold: float = DEFAULT_CONFIDENCE,
+        class_agnostic: bool = False,
     ) -> pd.DataFrame:
+        """
+        Get the object counts per image for a given confidence threshold as
+        DataFrame. Set `class_agnostic` to True to count all objects together
+        instead of per category.
+        """
         labels_sorted = self.labels_gdf.set_index("file_name").sort_index()
         preds_sorted = (
-            self.pred_gdf[self.pred_gdf["confidence"] >= conf]
+            self.predictions_gdf[
+                self.predictions_gdf["confidence"] >= confidence_threshold
+            ]
             .set_index("file_name")
             .sort_index()
         )

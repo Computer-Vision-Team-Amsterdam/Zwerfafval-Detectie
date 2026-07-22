@@ -8,7 +8,13 @@ from pandas.io.formats.style import Styler
 
 
 def yolo_string_to_dict(yolo_annotation: str) -> Dict[str, Any]:
-    """Convert a line of YOLO annotation text to a dict format."""
+    """
+    Convert a line of YOLO annotation text to a dict format.
+
+    Expects `cat_id x_center y_center width height conf`.
+
+    Returns `{"category": int, "confidence": float, "geometry": shapely.geometry.box}`.
+    """
     values = yolo_annotation.split()
 
     if len(values) >= 6:
@@ -32,7 +38,11 @@ def yolo_string_to_dict(yolo_annotation: str) -> Dict[str, Any]:
 
 
 def yolo_file_to_dicts(annotation_file_path: str) -> List[Dict[str, Any]]:
-    """Read a YOLO annotations file and return the annotations as a list of dicts."""
+    """
+    Read a YOLO annotations file and return the annotations as a list of dicts.
+
+    See `yolo_string_to_dict(..)` for details on the dict contents.
+    """
     data = []
 
     with open(annotation_file_path, "r") as f:
@@ -48,7 +58,11 @@ def yolo_file_to_dicts(annotation_file_path: str) -> List[Dict[str, Any]]:
 def read_annotations_folder(
     folder_path: str, categories: Optional[Iterable[int]], agnostic: bool = False
 ) -> gpd.GeoDataFrame:
-    """Convert all YOLO annotation files in a folder to GeoDataFrame with one annotation per row."""
+    """
+    Convert all YOLO annotation files in a folder to GeoDataFrame with one annotation per row.
+
+    The GeoDataFrame has columns `"file_name", "category", "confidence", "geometry"`.
+    """
     data = []
     annotation_files = [
         file for file in os.listdir(folder_path) if os.path.splitext(file)[1] == ".txt"
@@ -73,6 +87,9 @@ def read_annotations_folder(
 def make_pretty_confusion_matrix(
     df: pd.DataFrame, precision: int = 0, title: str = "Confusion Matrix"
 ) -> Styler:
+    """
+    Prettify a confusion matrix to mimic the style of YOLO output after training.
+    """
     styles = [
         dict(
             selector="*", props=[("font-family", "sans-serif"), ("font-size", "16px")]
