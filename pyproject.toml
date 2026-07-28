@@ -32,10 +32,13 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "azure-identity-broker",
+    "dataframe_image", 
+    "html2image",
     "ipykernel==6.*",
     "ipywidgets",
     "nbstripout>=0.7.1",
     "opencv-python<4.13",
+    "openpyxl",
     "pre-commit>=3.2.0",
     "pytest>=7.0.1",
     "pytest-cov>=4.0.0",
