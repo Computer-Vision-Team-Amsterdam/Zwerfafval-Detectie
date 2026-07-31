@@ -27,6 +27,7 @@ class TrainingPipelineSpec(SettingsSpecModel):
     model_parameters: TrainingModelParameters
     inputs: Dict[str, str] = None
     outputs: Dict[str, str] = None
+    run_prediction_best_model: bool = False
 
 
 class ZwerfafvalDetectieSettingsSpec(SettingsSpecModel):

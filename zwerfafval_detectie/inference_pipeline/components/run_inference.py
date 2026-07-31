@@ -29,6 +29,7 @@ def run_inference(
     inference_data_dir: Input(type=AssetTypes.URI_FOLDER),  # type: ignore # noqa: F821
     model_weights_dir: Input(type=AssetTypes.URI_FOLDER),  # type: ignore # noqa: F821
     output_dir: Output(type=AssetTypes.URI_FOLDER),  # type: ignore # noqa: F821
+    model_weights_forced_path: str = "",
 ):
     """
     Run inference using a pretrained YOLO model on a chosen set of images.
@@ -46,6 +47,9 @@ def run_inference(
         sensitive classes and bounding boxes, or both.
     """
     inference_settings = settings["inference_pipeline"]
+
+    if model_weights_forced_path != "":
+        inference_settings["inputs"]["model_name"] = model_weights_forced_path
 
     inference_pipeline = YOLOInference(
         images_folder=inference_data_dir,

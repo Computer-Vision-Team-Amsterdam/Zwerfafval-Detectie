@@ -55,6 +55,7 @@ training_pipeline:
     project_datastore_path: "experiments"
     project_rel_path: "zwerfafval/train"
     experiment_name: "yolo26m_1920_v1-2_extra_250"  # subfolder name to store results in, can be an empty string or omitted entirely
+  run_prediction_best_model: True  # Whether to run the inference pipeline on on train/val/test using best.pt after training
 
 logging:
   loglevel_own: INFO  # override loglevel for packages defined in `own_packages`
