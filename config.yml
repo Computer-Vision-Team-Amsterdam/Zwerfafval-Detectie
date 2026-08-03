@@ -10,8 +10,8 @@ aml_experiment_details:
 inference_pipeline:
   model_params:
     batch_size: 1  # batch size does not have an effect for SAHI
-    img_size: 1280  # [height, width]
-    conf: 0.01
+    img_size: 1920  # [height, width]
+    conf: 0.1
   inputs:
     datastore_path: "experiments"
     inference_data_rel_path: "zwerfafval/dataset_v1_extra_2/images/"
@@ -36,10 +36,10 @@ training_pipeline:
     img_size: 1920
     batch: 2
     epochs: 250
-    n_classes: 3
-    name_classes: ["zwerfafval_grof", "zwerfafval_fijn", "grofvuil"]
+    n_classes: 4
+    name_classes: ["zwerfafval_grof", "zwerfafval_fijn", "grofvuil", "vuilniszak"]
     cache: True  # cache dataset in RAM
-    patience: 0
+    patience: 50
     cos_lr: True
     seed: 0
     box: 7.5
@@ -47,14 +47,14 @@ training_pipeline:
     dfl: 1.5
   inputs:
     datastore_path: "experiments"
-    training_data_rel_path: "zwerfafval/dataset_v1-3_extra"
+    training_data_rel_path: "zwerfafval/dataset_v1_extra_2"
     model_weights_rel_path: "zwerfafval/model"
     model_name: "yolo26m.pt"
     model_config_file: "model_parameters.json" # can be an empty string or omitted entirely
   outputs:
     project_datastore_path: "experiments"
     project_rel_path: "zwerfafval/train"
-    experiment_name: "yolo26m_1920_v1-2_extra_250"  # subfolder name to store results in, can be an empty string or omitted entirely
+    experiment_name: "yolo26m_1920_v1_extra_2_250"  # subfolder name to store results in, can be an empty string or omitted entirely
   run_prediction_best_model: True  # Whether to run the inference pipeline on on train/val/test using best.pt after training
 
 logging:
