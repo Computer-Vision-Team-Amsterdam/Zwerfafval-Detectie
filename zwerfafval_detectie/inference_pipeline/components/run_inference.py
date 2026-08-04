@@ -29,7 +29,7 @@ def run_inference(
     inference_data_dir: Input(type=AssetTypes.URI_FOLDER),  # type: ignore # noqa: F821
     model_weights_dir: Input(type=AssetTypes.URI_FOLDER),  # type: ignore # noqa: F821
     output_dir: Output(type=AssetTypes.URI_FOLDER),  # type: ignore # noqa: F821
-    model_weights_forced_path: str = "",
+    model_weights_forced_path: str = "None",
 ):
     """
     Run inference using a pretrained YOLO model on a chosen set of images.
@@ -45,10 +45,17 @@ def run_inference(
         Location where output will be stored. Depending on the config settings
         this can be annotation labels as .txt files, images with blurred
         sensitive classes and bounding boxes, or both.
+    model_weights_forced_path: str = "None"
+        Optional: override the model weights path in the settings, for example
+        when running inference as part of a training pipeline.
+        NOTE: because of AML constraints the value needs to be a string and
+        cannot be "", hence "None" as default.
     """
     inference_settings = settings["inference_pipeline"]
 
-    if model_weights_forced_path != "":
+    if (
+        model_weights_forced_path != "None"
+    ):  # Cannot be None or "" due to AML constraints
         inference_settings["inputs"]["model_name"] = model_weights_forced_path
 
     inference_pipeline = YOLOInference(

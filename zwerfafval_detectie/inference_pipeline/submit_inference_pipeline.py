@@ -39,7 +39,8 @@ def inference_pipeline():
         path=model_weights_path,
     )
     run_inference_step = run_inference(
-        inference_data_dir=inference_data, model_weights_dir=model_weights
+        inference_data_dir=inference_data,
+        model_weights_dir=model_weights,
     )
 
     output_path = os.path.join(output_datastore_path, output_rel_path)
