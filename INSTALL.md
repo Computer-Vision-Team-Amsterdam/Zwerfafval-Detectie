@@ -3,7 +3,7 @@
 ## 1. Clone the code
 
 ```shell
-git clone git@github.com:Computer-Vision-Team-Amsterdam/Zwerfafval-Detectie.git
+git clone https://github.com/Computer-Vision-Team-Amsterdam/Zwerfafval-Detectie.git
 ```
 
 ## 2. Install UV
