@@ -5,6 +5,7 @@ from aml_interface.aml_interface import AMLInterface
 
 from zwerfafval_detectie.settings import ZwerfafvalDetectieSettings
 
+aml_interface = AMLInterface()
 logger = logging.getLogger("inference_pipeline")
 
 config_path = os.path.abspath(
