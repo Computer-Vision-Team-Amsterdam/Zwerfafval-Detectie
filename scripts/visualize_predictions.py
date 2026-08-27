@@ -12,12 +12,14 @@ CLASS_TO_NAME = {
     0: "Zwerfafval_grof",
     1: "Zwerfafval_fijn",
     2: "Grofvuil",
+    3: "Vuilniszak",
 }
 
 CLASS_TO_COLOR = {
     0: (140, 0, 227),
     1: (242, 188, 0),
     2: (90, 20, 40),
+    3: (43, 231, 251),
 }
 
 STATE_PREDICTIONS = 0
@@ -60,8 +62,8 @@ class PredictionVisualizer:
         print(
             "\n======\n"
             "Visualize YOLO predictions.\n"
-            "Press [RIGHT] or [LEFT] to move between images.\n"
-            "Press [UP] and [DOWN] to toggle between predictions and truth labels (if available).\n"
+            "Press [<] or [>] to move between images.\n"
+            "Press [P] and [L] to toggle between Predictions and truth Labels (if available).\n"
             "Press [ESC] to exit."
             "\n======\n"
         )
