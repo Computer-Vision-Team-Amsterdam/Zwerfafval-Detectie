@@ -4,7 +4,7 @@ aml_experiment_details:
   experiment_name: "zwerfafval_detectie"
   compute_name: gpu-inference-cluster
   env_name: zwerfafval_detectie
-  env_version: 1
+  env_version: 2
   src_dir: "."
 
 inference_pipeline:
@@ -14,15 +14,15 @@ inference_pipeline:
     conf: 0.1
   inputs:
     datastore_path: "experiments"
-    inference_data_rel_path: "zwerfafval/dataset_v1_extra_2/images/"
-    model_weights_rel_path: "zwerfafval/train/yolo26s_1280_v1_extra_2_250/weights"
+    inference_data_rel_path: "zwerfafval/data_inwinning_260713/recording_2026_07_13T09-50-35+0200/images/"
+    model_weights_rel_path: "zwerfafval/train_v1_extra_2/yolo26m_1920_250/weights/"
     model_name: "best.pt"
   outputs:
     datastore_path: "experiments"  # empty string "" means same as input datastore
-    output_rel_path: "zwerfafval/predict/yolo26s_1280_v1_extra_2_250"
+    output_rel_path: "zwerfafval/predict_v1_extra_2/inwinning_260713_26m_1920"
     detections_subfolder: ""
     labels_subfolder: ""
-  target_classes: [0, 1, 2, 3]
+  target_classes: [0, 1]
   sensitive_classes: []
   target_classes_conf: null  # null means conf is taken from model_params
   sensitive_classes_conf: null  # null means conf is taken from model_params
@@ -53,8 +53,8 @@ training_pipeline:
     model_config_file: "model_parameters.json" # can be an empty string or omitted entirely
   outputs:
     project_datastore_path: "experiments"
-    project_rel_path: "zwerfafval/train"
-    experiment_name: "yolo26m_1920_v1_extra_2_250"  # subfolder name to store results in, can be an empty string or omitted entirely
+    project_rel_path: "zwerfafval/train_v1_extra_2"
+    experiment_name: "yolo26m_1920_250"  # subfolder name to store results in, can be an empty string or omitted entirely
   run_prediction_best_model: True  # Whether to run the inference pipeline on on train/val/test using best.pt after training
 
 logging:
