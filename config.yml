@@ -4,7 +4,7 @@ aml_experiment_details:
   experiment_name: "zwerfafval_detectie"
   compute_name: gpu-inference-cluster
   env_name: zwerfafval_detectie
-  env_version: 1
+  env_version: 2
   src_dir: "."
 
 inference_pipeline:
