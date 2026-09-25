@@ -2,6 +2,8 @@
 
 Detection of litter on streetview images. In this project we train a YOLO model on a dataset of annotated images.
 
+This is version 0.1 of the project, which was developed as an MVP. Some parts are not yet production-ready.
+
 
 ## Installation
 
@@ -47,7 +49,7 @@ uv run --extra dev python zwerfafval_detectie/training_pipeline/submit_training_
 Our current model is a prototype trained on a limited set of images with two classes:
 ```python
 {
-    0: "zwerfafval_grof",  # litter bigger than 10cm, but not more than a typical piece of cardboard or plastic bag
+    0: "zwerfafval_grof",  # litter bigger than 10cm, but not more than a typical cardboard box or plastic bag
     1: "zwerfafval_fijn"   # litter small than 10cm
 }
 ```
@@ -77,3 +79,5 @@ uv run --extra dev python scripts/visualize_predictions.py --images_folder /path
 ### Aggregating detections
 
 Assuming images are collected using a mobile platform following a route of interest, the [aggregate detections notebook](notebooks/aggregate_detections.ipynb) can be used to collect aggregates over the route, e.g. by computing a moving average of the detection count and enriching the metadata with street information.
+
+Afterwards, a [heatmap can be created](notebooks/heatmap.ipynb) to show the detections on a map.
