@@ -8,6 +8,7 @@ version = "0.1"
 description = "Detectie van zwerfafval op straatbeelden."
 authors = [
     {name = "Daan Bloembergen", email = "d.bloembergen@amsterdam.nl"},
+    {name = "Weiyi Ding", email = "w.ding@amsterdam.nl"},
 ]
 maintainers = [
     { name = "Computer Vision Team, Gemeente Amsterdam", email = "cvt@amsterdam.nl" },
