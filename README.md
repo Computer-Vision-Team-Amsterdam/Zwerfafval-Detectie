@@ -53,6 +53,10 @@ Our current model is a prototype trained on a limited set of images with two cla
 ```
 The model is based on the [pre-trained YOLO26m](https://github.com/ultralytics/ultralytics#-models) with an image size of 1920. The weights can be found [here](model_weights/best.pt).
 
+### Model evaluation
+
+The [evaluation notebook](notebooks/evaluate.ipynb) can be used to measure the performance of a trained model on a validation or test set.
+
 
 ## Running inference on (new) data
 
@@ -62,8 +66,7 @@ Inference parameters can be configured in [config.yml](config.yml) under `infere
 uv run --extra dev python zwerfafval_detectie/inference_pipeline/submit_inference_pipeline.py
 ```
 
-
-## Visualising predictions
+### Visualising predictions
 
 The script [visualize_predictions.py](scripts/visualize_predictions.py) can be used to check the model predictions on a set of images, along with optional ground truth labels.
 
@@ -71,7 +74,6 @@ The script [visualize_predictions.py](scripts/visualize_predictions.py) can be u
 uv run --extra dev python scripts/visualize_predictions.py --images_folder /path/to/images --predictions_folder /path/to/predictions [--labels_folder /path/to/labels]
 ```
 
+### Aggregating detections
 
-## Model evaluation
-
-The [evaluation notebook](notebooks/evaluate.ipynb) can be used to measure the performance of a trained model on a validation or test set.
+Assuming images are collected using a mobile platform following a route of interest, the [aggregate detections notebook](notebooks/aggregate_detections.ipynb) can be used to collect aggregates over the route, e.g. by computing a moving average of the detection count and enriching the metadata with street information.
